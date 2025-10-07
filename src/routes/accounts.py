@@ -258,6 +258,7 @@ async def login_user(
         await db.rollback()
         raise HTTPException(status_code=500, detail="An error occurred while processing the request.")
 
+
 @router.post(
     "/refresh/",
     response_model=TokenRefreshResponseSchema,
