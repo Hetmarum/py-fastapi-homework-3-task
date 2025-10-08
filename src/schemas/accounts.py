@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class UserRegistrationRequestSchema(BaseModel):
-    email: EmailStr = Field(example="user@example.com")
-    password: str = Field(example="SecurePassword123!")
+    email: EmailStr
+    password: str
 
 
 class UserRegistrationResponseSchema(BaseModel):
@@ -14,40 +14,38 @@ class UserRegistrationResponseSchema(BaseModel):
 
 
 class UserActivationRequestSchema(BaseModel):
-    email: EmailStr = Field(example="user@example.com")
-    token: str = Field(example="activation_token")
+    email: EmailStr
+    token: str
 
 
 class PasswordResetRequestSchema(BaseModel):
-    email: EmailStr = Field(example="user@example.com")
+    email: EmailStr
 
 
 class PasswordResetCompleteRequestSchema(BaseModel):
-    email: EmailStr = Field(example="user@example.com")
-    token: str = Field(example="reset_token")
-    password: str = Field(min_length=8, example="NewSecurePassword123!")
+    email: EmailStr
+    token: str
+    password: str
 
 
 class UserLoginRequestSchema(BaseModel):
-    email: EmailStr = Field(example="user@example.com")
-    password: str = Field(example="UserPassword123!")
+    email: EmailStr
+    password: str
 
 
 class UserLoginResponseSchema(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str = "bearer"
+    token_type: str
 
 
 class MessageResponseSchema(BaseModel):
-    message: str = Field(example="Action completed successfully.")
+    message: str
 
 
 class TokenRefreshRequestSchema(BaseModel):
-    refresh_token: str = Field(example="refresh_token")
+    refresh_token: str
 
 
 class TokenRefreshResponseSchema(BaseModel):
-    access_token: str = Field(example="new_access_token_here")
-    refresh_token: str = Field(example="new_refresh_token_here")
-    token_type: str = Field(default="bearer", example="bearer")
+    access_token: str

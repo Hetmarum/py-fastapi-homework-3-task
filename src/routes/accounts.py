@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from typing import cast
-import re
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select, delete
@@ -19,6 +18,7 @@ from database import (
 from exceptions import BaseSecurityError
 from security.interfaces import JWTAuthManagerInterface
 from security.hashing import hash_password
+from database.validators.accounts import validate_password_strength
 from schemas.accounts import (
     UserRegistrationRequestSchema,
     UserRegistrationResponseSchema,
@@ -35,31 +35,6 @@ from schemas.accounts import (
 router = APIRouter()
 
 
-def validate_password(password: str):
-    if len(password) < 8:
-        raise HTTPException(
-            status_code=422, detail="Password must contain at least 8 characters."
-        )
-    if not re.search(r"[A-Z]", password):
-        raise HTTPException(
-            status_code=422,
-            detail="Password must contain at least one uppercase letter.",
-        )
-    if not re.search(r"[a-z]", password):
-        raise HTTPException(
-            status_code=422, detail="Password must contain at least one lower letter."
-        )
-    if not re.search(r"\d", password):
-        raise HTTPException(
-            status_code=422, detail="Password must contain at least one digit."
-        )
-    if not re.search(r"[@$!%*?#&]", password):
-        raise HTTPException(
-            status_code=422,
-            detail="Password must contain at least one special character: @, $, !, %, *, ?, #, &.",
-        )
-
-
 @router.post(
     "/register/",
     response_model=UserRegistrationResponseSchema,
@@ -70,7 +45,7 @@ async def register_user(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        validate_password(user_data.password)
+        validate_password_strength(user_data.password)
 
         existing_user = await db.scalar(
             select(UserModel).where(UserModel.email == user_data.email)
@@ -104,6 +79,8 @@ async def register_user(
 
         return UserRegistrationResponseSchema(id=new_user.id, email=new_user.email)
 
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except HTTPException:
         raise
     except Exception:
@@ -181,16 +158,14 @@ async def complete_password_reset(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        validate_password(data.password)
+        validate_password_strength(data.password)
 
         user = await db.scalar(select(UserModel).where(UserModel.email == data.email))
         if not user or not user.is_active:
             raise HTTPException(status_code=400, detail="Invalid email or token.")
 
         token_record = await db.scalar(
-            select(PasswordResetTokenModel).where(
-                PasswordResetTokenModel.user_id == user.id
-            )
+            select(PasswordResetTokenModel).where(PasswordResetTokenModel.user_id == user.id)
         )
 
         if not token_record or token_record.token != data.token:
@@ -199,20 +174,24 @@ async def complete_password_reset(
                 await db.commit()
             raise HTTPException(status_code=400, detail="Invalid email or token.")
 
-        expires_at = cast(datetime, token_record.expires_at).replace(
-            tzinfo=timezone.utc
-        )
+        expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
         if expires_at < datetime.now(timezone.utc):
             await db.delete(token_record)
             await db.commit()
             raise HTTPException(status_code=400, detail="Invalid email or token.")
 
         user.password = data.password
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
         await db.delete(token_record)
         await db.commit()
 
         return MessageResponseSchema(message="Password reset successfully.")
 
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except HTTPException:
         raise
     except Exception:
